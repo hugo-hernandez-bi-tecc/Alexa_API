@@ -181,6 +181,110 @@ def register_user():
             'message': f'Error interno del servidor: {str(e)}'
         }), 500
 
+
+@app.route('/login_user', methods=['POST'])
+def login_user():
+    """Endpoint para iniciar sesión"""
+    print("\n" + "="*50)
+    print("[DEBUG] 🔐 Iniciando proceso de login")
+    print(f"[DEBUG] Timestamp: {datetime.now()}")
+    
+    try:
+        # Obtener datos del request
+        data = request.get_json()
+        print(f"[DEBUG] Datos recibidos (sin password): {{'email': '{data.get('email')}'}}")
+        
+        usr_email = data.get('email')
+        usr_password = data.get('password')
+        
+        # Validar campos
+        if not usr_email or not usr_password:
+            print("[ERROR] ❌ Campos incompletos")
+            return jsonify({
+                'success': False,
+                'message': 'Email y contraseña son requeridos'
+            }), 400
+        
+        print(f"[DEBUG] Email: {usr_email}")
+        print(f"[DEBUG] Password length: {len(usr_password)}")
+        
+        # Obtener conexión
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Error de conexión a la base de datos'
+            }), 500
+        
+        cursor = conn.cursor()
+        
+        # Buscar usuario por email
+        print("[DEBUG] Buscando usuario en la base de datos...")
+        cursor.execute(
+            """
+            SELECT usr_index, usr_name, usr_email, usr_password 
+            FROM usr_mstr 
+            WHERE usr_email = %s
+            """,
+            (usr_email,)
+        )
+        
+        user = cursor.fetchone()
+        
+        # Cerrar cursor y liberar conexión
+        cursor.close()
+        release_db_connection(conn)
+        
+        # Verificar si el usuario existe
+        if not user:
+            print("[ERROR] ❌ Usuario no encontrado")
+            return jsonify({
+                'success': False,
+                'message': 'Credenciales incorrectas'
+            }), 401
+        
+        print("[DEBUG] ✅ Usuario encontrado")
+        
+        usr_index, usr_name, usr_email_db, hashed_password = user
+        
+        # Verificar contraseña
+        print("[DEBUG] Verificando contraseña...")
+        password_match = bcrypt.checkpw(
+            usr_password.encode('utf-8'),
+            hashed_password.encode('utf-8')
+        )
+        
+        if not password_match:
+            print("[ERROR] ❌ Contraseña incorrecta")
+            return jsonify({
+                'success': False,
+                'message': 'Credenciales incorrectas'
+            }), 401
+        
+        print("[DEBUG] ✅ Contraseña correcta")
+        print(f"[DEBUG] 🎉 Login exitoso para usuario ID: {usr_index}")
+        print("="*50 + "\n")
+        
+        return jsonify({
+            'success': True,
+            'message': f'¡Bienvenido, {usr_name}!',
+            'data': {
+                'usr_index': usr_index,
+                'usr_name': usr_name,
+                'usr_email': usr_email_db
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"[ERROR] ❌ Error inesperado: {e}")
+        if 'conn' in locals() and conn:
+            release_db_connection(conn)
+        return jsonify({
+            'success': False,
+            'message': f'Error interno del servidor: {str(e)}'
+        }), 500
+
+
 @app.route('/')
 def home():
     return render_template('index.html')
