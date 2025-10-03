@@ -609,18 +609,9 @@ def record_therapy_answer(session_id):
         "pronunciation_score": 75,
         "is_correct": false,
         "error_type": "substitution_r_to_",
-        "error_details": {
-            "baseSimilarity": 80,
-            "phoneticIssue": "omission",
-            "positionIssue": "none",
-            "lengthDifference": 1
-        }
+        "error_details": {...},
+        "category": "animales"  // 🔥 NUEVO: Opcional, actualiza therapy_category si se envía
     }
-    
-    LLAMAR desde Alexa:
-    - Después de cada respuesta del usuario en validateWordAnswer
-    - Después de cada respuesta en validateNumberAnswer
-    - Usar los resultados de validateWord() para llenar los campos
     """
     print("\n" + "="*50)
     print(f"[DEBUG] 📝 Registrando respuesta para sesión {session_id}")
@@ -630,6 +621,10 @@ def record_therapy_answer(session_id):
         data = request.get_json()
         print(f"[DEBUG] Respuesta: {data.get('user_answer')} (esperado: {data.get('expected_answer')})")
         print(f"[DEBUG] Score: {data.get('pronunciation_score')}")
+        
+        # 🔥 Mostrar categoría si viene
+        if 'category' in data:
+            print(f"[DEBUG] Categoría: {data.get('category')}")
         
         # Validaciones
         required_fields = ['question_text', 'expected_answer', 'user_answer', 
@@ -677,6 +672,18 @@ def record_therapy_answer(session_id):
                 'success': False,
                 'message': f'La sesión está {session[0]}, no se pueden agregar respuestas'
             }), 400
+        
+        # 🔥 SI VIENE CATEGORÍA, ACTUALIZAR therapy_category EN LA SESIÓN
+        if 'category' in data and data['category']:
+            cursor.execute(
+                """
+                UPDATE therapy_sessions 
+                SET therapy_category = %s
+                WHERE session_id = %s
+                """,
+                (data['category'], session_id)
+            )
+            print(f"[DEBUG] ✅ Categoría actualizada a: {data['category']}")
         
         # Insertar respuesta
         cursor.execute(
@@ -750,6 +757,7 @@ def record_therapy_answer(session_id):
             'success': False,
             'message': f'Error al registrar respuesta: {str(e)}'
         }), 500
+
 
 @app.route('/therapy/session/<int:session_id>/end', methods=['PUT'])
 def end_therapy_session(session_id):
