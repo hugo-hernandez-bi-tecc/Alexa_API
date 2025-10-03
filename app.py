@@ -37,6 +37,10 @@ def init_db_pool():
     except Exception as e:
         print(f"[ERROR] ❌ Error al crear pool de conexiones: {e}")
         return False
+
+# 🔥 ESTO ES LO IMPORTANTE: Inicializar el pool al cargar el módulo
+if connection_pool is None:
+    init_db_pool()
     
 def get_db_connection():
     """Obtener una conexión del pool"""
