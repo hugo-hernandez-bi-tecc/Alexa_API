@@ -780,11 +780,11 @@ def record_therapy_answer(session_id):
             'message': f'Error al registrar respuesta: {str(e)}'
         }), 500
 
-        
-@app.route('/therapy/session/active/<int:usr_index>/<therapy_type>', methods=['GET'])
-def get_active_session(usr_index, therapy_type):
+
+@app.route('/therapy/session/active/<int:usr_index>', methods=['GET'])
+def get_active_session(usr_index):
     """
-    Obtiene la sesión activa de un usuario para un tipo de terapia específico
+    Obtiene cualquier sesión activa del usuario (palabras o números)
     """
     try:
         conn = get_db_connection()
@@ -798,15 +798,21 @@ def get_active_session(usr_index, therapy_type):
         
         cursor.execute(
             """
-            SELECT session_id, therapy_category, started_at, total_questions, correct_answers
+            SELECT 
+                session_id, 
+                therapy_type,
+                therapy_category, 
+                started_at, 
+                total_questions, 
+                correct_answers,
+                current_question_index
             FROM therapy_sessions
             WHERE usr_index = %s 
-              AND therapy_type = %s 
               AND session_status = 'active'
             ORDER BY started_at DESC
             LIMIT 1
             """,
-            (usr_index, therapy_type)
+            (usr_index,)
         )
         
         session = cursor.fetchone()
@@ -818,10 +824,12 @@ def get_active_session(usr_index, therapy_type):
                 'success': True,
                 'data': {
                     'session_id': session[0],
-                    'therapy_category': session[1],
-                    'started_at': session[2].isoformat(),
-                    'total_questions': session[3],
-                    'correct_answers': session[4]
+                    'therapy_type': session[1],  # palabras o números
+                    'therapy_category': session[2],
+                    'started_at': session[3].isoformat(),
+                    'total_questions': session[4],
+                    'correct_answers': session[5],
+                    'current_question_index': session[6]
                 }
             }), 200
         else:
@@ -838,7 +846,6 @@ def get_active_session(usr_index, therapy_type):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
 
 @app.route('/therapy/session/<int:session_id>/end', methods=['PUT'])
 def end_therapy_session(session_id):
