@@ -610,7 +610,9 @@ def record_therapy_answer(session_id):
         "is_correct": false,
         "error_type": "substitution_r_to_",
         "error_details": {...},
-        "category": "animales"  // 🔥 NUEVO: Opcional, actualiza therapy_category si se envía
+        "current_question_index": 5,        # Índice actual (i o j-2)
+        "next_question_index": 6,           # Siguiente índice
+        "category": "animales"              # Opcional
     }
     """
     print("\n" + "="*50)
@@ -622,7 +624,11 @@ def record_therapy_answer(session_id):
         print(f"[DEBUG] Respuesta: {data.get('user_answer')} (esperado: {data.get('expected_answer')})")
         print(f"[DEBUG] Score: {data.get('pronunciation_score')}")
         
-        # 🔥 Mostrar categoría si viene
+        # Mostrar índices y categoría si vienen
+        if 'current_question_index' in data:
+            print(f"[DEBUG] Índice actual: {data.get('current_question_index')}")
+        if 'next_question_index' in data:
+            print(f"[DEBUG] Siguiente índice: {data.get('next_question_index')}")
         if 'category' in data:
             print(f"[DEBUG] Categoría: {data.get('category')}")
         
@@ -673,17 +679,32 @@ def record_therapy_answer(session_id):
                 'message': f'La sesión está {session[0]}, no se pueden agregar respuestas'
             }), 400
         
-        # 🔥 SI VIENE CATEGORÍA, ACTUALIZAR therapy_category EN LA SESIÓN
+        # 🔥 CONSTRUIR UPDATE DINÁMICO PARA therapy_sessions
+        update_parts = []
+        update_values = []
+        
+        # Actualizar categoría si viene
         if 'category' in data and data['category']:
-            cursor.execute(
-                """
+            update_parts.append("therapy_category = %s")
+            update_values.append(data['category'])
+            print(f"[DEBUG] Actualizando categoría a: {data['category']}")
+        
+        # Actualizar índice si viene
+        if 'next_question_index' in data and data['next_question_index'] is not None:
+            update_parts.append("current_question_index = %s")
+            update_values.append(data['next_question_index'])
+            print(f"[DEBUG] Actualizando índice a: {data['next_question_index']}")
+        
+        # Ejecutar UPDATE si hay algo que actualizar
+        if update_parts:
+            update_query = f"""
                 UPDATE therapy_sessions 
-                SET therapy_category = %s
+                SET {', '.join(update_parts)}
                 WHERE session_id = %s
-                """,
-                (data['category'], session_id)
-            )
-            print(f"[DEBUG] ✅ Categoría actualizada a: {data['category']}")
+            """
+            update_values.append(session_id)
+            cursor.execute(update_query, tuple(update_values))
+            print(f"[DEBUG] ✅ Sesión actualizada")
         
         # Insertar respuesta
         cursor.execute(
@@ -750,6 +771,7 @@ def record_therapy_answer(session_id):
         
     except Exception as e:
         print(f"[ERROR] ❌ Error: {e}")
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
         if 'conn' in locals() and conn:
             conn.rollback()
             release_db_connection(conn)
@@ -758,7 +780,7 @@ def record_therapy_answer(session_id):
             'message': f'Error al registrar respuesta: {str(e)}'
         }), 500
 
-
+        
 @app.route('/therapy/session/active/<int:usr_index>/<therapy_type>', methods=['GET'])
 def get_active_session(usr_index, therapy_type):
     """
