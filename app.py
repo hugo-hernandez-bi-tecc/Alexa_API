@@ -759,6 +759,65 @@ def record_therapy_answer(session_id):
         }), 500
 
 
+@app.route('/therapy/session/active/<int:usr_index>/<therapy_type>', methods=['GET'])
+def get_active_session(usr_index, therapy_type):
+    """
+    Obtiene la sesión activa de un usuario para un tipo de terapia específico
+    """
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'Error de conexión a la base de datos'
+            }), 500
+        
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """
+            SELECT session_id, therapy_category, started_at, total_questions, correct_answers
+            FROM therapy_sessions
+            WHERE usr_index = %s 
+              AND therapy_type = %s 
+              AND session_status = 'active'
+            ORDER BY started_at DESC
+            LIMIT 1
+            """,
+            (usr_index, therapy_type)
+        )
+        
+        session = cursor.fetchone()
+        cursor.close()
+        release_db_connection(conn)
+        
+        if session:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'session_id': session[0],
+                    'therapy_category': session[1],
+                    'started_at': session[2].isoformat(),
+                    'total_questions': session[3],
+                    'correct_answers': session[4]
+                }
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'No hay sesión activa'
+            }), 404
+            
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        if 'conn' in locals() and conn:
+            release_db_connection(conn)
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
 @app.route('/therapy/session/<int:session_id>/end', methods=['PUT'])
 def end_therapy_session(session_id):
     """
